@@ -1,5 +1,6 @@
 // Partially Persistent Red-Black Tree
 #include <memory>
+#include <map>
 
 using namespace std;
 
@@ -11,8 +12,9 @@ enum ModType {
     EMPTY, LEFT, RIGHT
 };
 
-struct Node;
 struct Modification;
+struct Node;
+struct RedBlackTree;
 
 struct Modification {
 
@@ -68,6 +70,42 @@ struct Node {
         if(mod->type == RIGHT && mod->version <= version) return mod->node;
         return right;
     }
+
+    shared_ptr<Node> setLeft(shared_ptr<Node> node, int version) {
+
+        if(mod->type == EMPTY) {
+            mod->type = LEFT;
+            mod->version = version;
+            mod->node = left;
+            return nullptr;
+        }
+
+        auto newnode = copy();
+        newnode->setLeft(node, version);
+        return newnode;
+    }
+
+    shared_ptr<Node> setRight(shared_ptr<Node> node, int version) {
+
+        if(mod->type == EMPTY) {
+            mod->type = RIGHT;
+            mod->version = version;
+            mod->node = right;
+            return nullptr;
+        }
+
+        auto newnode = copy();
+        newnode->setRight(node, version);
+        return newnode;
+    }
+};
+
+struct RedBlackTree {
+    
+    map<int, shared_ptr<Node>> roots;
+    int latestVersion;
+
+    RedBlackTree() : latestVersion(0) {}
 };
 
 int main() {
