@@ -1,4 +1,5 @@
 // Partially Persistent Red-Black Tree
+
 #include <memory>
 #include <map>
 
@@ -33,22 +34,23 @@ struct Node {
     int key;
     Color color;
     shared_ptr<Node> left, right;
+    shared_ptr<Node> parent;
     shared_ptr<Modification> mod;
 
-    Node(int key) : 
+    Node(int key, shared_ptr<Node> parent = nullptr) : 
         key(key), 
         color(RED),
         left(nullptr),
         right(nullptr),
+        parent(parent),
         mod(make_shared<Modification>()) {}
 
     shared_ptr<Node> copy() {
 
-        auto node = make_shared<Node>(key);
+        auto node = make_shared<Node>(key, parent);
         node->color = color;
         node->left = left;
         node->right = right;
-        node->mod = nullptr;
 
         switch(mod->type) {
             case LEFT:
@@ -70,34 +72,6 @@ struct Node {
         if(mod->type == RIGHT && mod->version <= version) return mod->node;
         return right;
     }
-
-    shared_ptr<Node> setLeft(shared_ptr<Node> node, int version) {
-
-        if(mod->type == EMPTY) {
-            mod->type = LEFT;
-            mod->version = version;
-            mod->node = left;
-            return nullptr;
-        }
-
-        auto newnode = copy();
-        newnode->setLeft(node, version);
-        return newnode;
-    }
-
-    shared_ptr<Node> setRight(shared_ptr<Node> node, int version) {
-
-        if(mod->type == EMPTY) {
-            mod->type = RIGHT;
-            mod->version = version;
-            mod->node = right;
-            return nullptr;
-        }
-
-        auto newnode = copy();
-        newnode->setRight(node, version);
-        return newnode;
-    }
 };
 
 struct RedBlackTree {
@@ -106,7 +80,52 @@ struct RedBlackTree {
     int latestVersion;
 
     RedBlackTree() : latestVersion(0) {}
+
+    void setLeft(shared_ptr<Node>, shared_ptr<Node>);
+    void setRight(shared_ptr<Node>, shared_ptr<Node>);
 };
+
+void RedBlackTree::setLeft(shared_ptr<Node> node, shared_ptr<Node> left) {
+
+    if(node->mod->type == EMPTY) {
+        node->mod->type = LEFT;
+        node->mod->version = latestVersion;
+        node->mod->node = left;
+        return;
+    }
+
+    auto newNode = node->copy();
+    newNode->left = left;
+
+    if(node->parent == nullptr) {
+        roots[latestVersion] = newNode;
+        return;
+    }
+
+    if(node->parent->left == node) setLeft(node->parent, newNode);
+    else setRight(node->parent, newNode);
+}
+
+void RedBlackTree::setRight(shared_ptr<Node> node, shared_ptr<Node> right) {
+
+    if(node->mod->type == EMPTY) {
+        node->mod->type = RIGHT;
+        node->mod->version = latestVersion;
+        node->mod->node = right;
+        return;
+    }
+
+    auto newNode = node->copy();
+    newNode->right = right;
+
+    if(node->parent == nullptr) {
+        roots[latestVersion] = newNode;
+        return;
+    }
+
+    if(node->parent->left == node) setLeft(node->parent, newNode);
+    else setRight(node->parent, newNode);
+}
 
 int main() {
 
