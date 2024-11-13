@@ -83,6 +83,8 @@ struct RedBlackTree {
 
     void setLeft(shared_ptr<Node>, shared_ptr<Node>);
     void setRight(shared_ptr<Node>, shared_ptr<Node>);
+    void leftRotate(shared_ptr<Node>);
+    void rightRotate(shared_ptr<Node>);
 };
 
 void RedBlackTree::setLeft(shared_ptr<Node> node, shared_ptr<Node> left) {
@@ -91,11 +93,13 @@ void RedBlackTree::setLeft(shared_ptr<Node> node, shared_ptr<Node> left) {
         node->mod->type = LEFT;
         node->mod->version = latestVersion;
         node->mod->node = left;
+        if(left != nullptr) left->parent = node;
         return;
     }
 
     auto newNode = node->copy();
     newNode->left = left;
+    if(left != nullptr) left->parent = newNode;
 
     if(node->parent == nullptr) {
         roots[latestVersion] = newNode;
@@ -112,11 +116,13 @@ void RedBlackTree::setRight(shared_ptr<Node> node, shared_ptr<Node> right) {
         node->mod->type = RIGHT;
         node->mod->version = latestVersion;
         node->mod->node = right;
+        if(right != nullptr) right->parent = node;
         return;
     }
 
     auto newNode = node->copy();
     newNode->right = right;
+    if(right != nullptr) right->parent = newNode;
 
     if(node->parent == nullptr) {
         roots[latestVersion] = newNode;
@@ -125,6 +131,42 @@ void RedBlackTree::setRight(shared_ptr<Node> node, shared_ptr<Node> right) {
 
     if(node->parent->left == node) setLeft(node->parent, newNode);
     else setRight(node->parent, newNode);
+}
+
+void RedBlackTree::leftRotate(shared_ptr<Node> node) {
+
+    auto right = node->getRight(latestVersion);
+    
+    setRight(node, right->getLeft(latestVersion));
+
+    if(node->parent == nullptr) {
+        roots[latestVersion] = right;
+        right->parent = nullptr;
+    } else if(node->parent->left == node) {
+        setLeft(node->parent, right);
+    } else {
+        setRight(node->parent, right);
+    }
+
+    setLeft(right, node);
+}
+
+void RedBlackTree::rightRotate(shared_ptr<Node> node) {
+
+    auto left = node->getLeft(latestVersion);
+
+    setLeft(node, left->getRight(latestVersion));
+
+    if(node->parent == nullptr) {
+        roots[latestVersion] = left;
+        left->parent = nullptr;
+    } else if(node->parent->left == node) {
+        setLeft(node->parent, left);
+    } else {
+        setRight(node->parent, left);
+    }
+
+    setRight(left, node);
 }
 
 int main() {
