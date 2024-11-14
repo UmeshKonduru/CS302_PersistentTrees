@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <map>
+#include <iostream>
 
 using namespace std;
 
@@ -74,12 +75,52 @@ struct Node {
     }
 };
 
+void printKey(shared_ptr<Node> node) {
+
+    if(node == nullptr) {
+        cout << "NULL" << endl;
+        return;
+    }
+
+    cout << node->key << endl;
+}
+
+void printNode(shared_ptr<Node> node) {
+
+    if(node == nullptr) {
+        cout << "NULL" << endl;
+        return;
+    }
+
+    cout << "Key: " << node->key << endl;
+
+    cout << "Left: ";
+    printKey(node->left);
+
+    cout << "Right: ";
+    printKey(node->right);
+
+    cout << "Parent: ";
+    printKey(node->parent);
+
+    cout << "Mod: " << endl;
+    cout << "Type: " << node->mod->type << endl;
+    if(node->mod->type != EMPTY) {
+        cout << "Version: " << node->mod->version << endl;
+        cout << "Key: " << node->mod->node->key << endl;
+    }
+
+    cout << endl;
+}
+
 struct RedBlackTree {
     
     map<int, shared_ptr<Node>> root;
     int latestVersion;
 
-    RedBlackTree() : latestVersion(0) {}
+    RedBlackTree() : latestVersion(0) {
+        root[0] = nullptr;
+    }
 
     shared_ptr<Node> getRoot(int version) {
         auto it = --(root.upper_bound(version));
@@ -96,6 +137,44 @@ struct RedBlackTree {
     void leftRotate(shared_ptr<Node>&);
     void rightRotate(shared_ptr<Node>&);
     void fixInsert(shared_ptr<Node>);
+
+    void insert(int key) {
+
+        latestVersion++;
+
+        if(getRoot() == nullptr) {
+            root[latestVersion] = make_shared<Node>(key);
+            getRoot()->color = BLACK;
+            return;
+        }
+
+        shared_ptr<Node> node = getRoot(), parent = nullptr;
+
+        while(node != nullptr) {
+            parent = node;
+            if(key < node->key) node = node->getLeft(latestVersion);
+            else node = node->getRight(latestVersion);
+        }
+
+        node = make_shared<Node>(key, parent);
+        if(key < parent->key) setLeft(parent, node);
+        else setRight(parent, node);
+
+        fixInsert(node);
+    }
+
+    bool count(int key, int version) {
+
+        shared_ptr<Node> node = getRoot(version);
+
+        while(node != nullptr) {
+            if(node->key == key) return true;
+            if(key < node->key) node = node->getLeft(version);
+            else node = node->getRight(version);
+        }
+
+        return false;
+    }
 };
 
 void RedBlackTree::setLeft(shared_ptr<Node> &node, shared_ptr<Node> left) {
@@ -238,6 +317,20 @@ void RedBlackTree::fixInsert(shared_ptr<Node> node) {
     getRoot()->color = BLACK;
 }
 
+void testInsert() {
+
+    RedBlackTree tree;
+
+    tree.insert(1);
+    tree.insert(2);
+    tree.insert(3);
+    tree.insert(4);
+    tree.insert(5);
+}
+
 int main() {
 
+    testInsert();
+
+    return 0;
 }
