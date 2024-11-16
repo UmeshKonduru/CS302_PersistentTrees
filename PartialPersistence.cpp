@@ -61,6 +61,10 @@ struct Node {
             node->right = mod->node;
         }
 
+        if(left != nullptr) left->parent = node;
+        if(right != nullptr) right->parent = node;
+        if(mod->type != EMPTY) mod->node->parent = node;
+
         return node;
     }
 
@@ -74,44 +78,6 @@ struct Node {
         return right;
     }
 };
-
-void printKey(shared_ptr<Node> node) {
-
-    if(node == nullptr) {
-        cout << "NULL" << endl;
-        return;
-    }
-
-    cout << node->key << endl;
-}
-
-void printNode(shared_ptr<Node> node) {
-
-    if(node == nullptr) {
-        cout << "NULL" << endl;
-        return;
-    }
-
-    cout << "Key: " << node->key << endl;
-
-    cout << "Left: ";
-    printKey(node->left);
-
-    cout << "Right: ";
-    printKey(node->right);
-
-    cout << "Parent: ";
-    printKey(node->parent);
-
-    cout << "Mod: " << endl;
-    cout << "Type: " << node->mod->type << endl;
-    if(node->mod->type != EMPTY) {
-        cout << "Version: " << node->mod->version << endl;
-        cout << "Key: " << node->mod->node->key << endl;
-    }
-
-    cout << endl;
-}
 
 struct RedBlackTree {
     
@@ -326,6 +292,46 @@ void testInsert() {
     tree.insert(3);
     tree.insert(4);
     tree.insert(5);
+
+    cout << tree.count(1, 1) << endl;
+    cout << tree.count(2, 1) << endl;
+    cout << tree.count(3, 1) << endl;
+    cout << tree.count(4, 1) << endl;
+    cout << tree.count(5, 1) << endl;
+
+    cout << endl;
+
+    cout << tree.count(1, 2) << endl;
+    cout << tree.count(2, 2) << endl;
+    cout << tree.count(3, 2) << endl;
+    cout << tree.count(4, 2) << endl;
+    cout << tree.count(5, 2) << endl;
+
+    cout << endl;
+
+    cout << tree.count(1, 3) << endl;
+    cout << tree.count(2, 3) << endl;
+    cout << tree.count(3, 3) << endl;
+    cout << tree.count(4, 3) << endl;
+    cout << tree.count(5, 3) << endl;
+
+    cout << endl;
+
+    cout << tree.count(1, 4) << endl;
+    cout << tree.count(2, 4) << endl;
+    cout << tree.count(3, 4) << endl;
+    cout << tree.count(4, 4) << endl;
+    cout << tree.count(5, 4) << endl;
+
+    cout << endl;
+
+    cout << tree.count(1, 5) << endl;
+    cout << tree.count(2, 5) << endl;
+    cout << tree.count(3, 5) << endl;
+    cout << tree.count(4, 5) << endl;
+    cout << tree.count(5, 5) << endl;
+
+    cout << endl;
 }
 
 int main() {
