@@ -3,6 +3,11 @@
 #include <memory>
 #include <map>
 #include <iostream>
+#include <vector>
+#include <numeric>
+#include <random>
+#include <chrono>
+#include <algorithm>
 
 using namespace std;
 
@@ -38,7 +43,7 @@ struct Node {
     shared_ptr<Node> parent;
     shared_ptr<Modification> mod;
 
-    Node(int key, shared_ptr<Node> parent = nullptr) : 
+    Node(int key, shared_ptr<Node> parent = nullptr) :
         key(key), 
         color(RED),
         left(nullptr),
@@ -63,7 +68,7 @@ struct Node {
 
         if(left != nullptr) left->parent = node;
         if(right != nullptr) right->parent = node;
-        if(mod->type != EMPTY) mod->node->parent = node;
+        if(mod->type != EMPTY && mod->node != nullptr) mod->node->parent = node;
 
         return node;
     }
@@ -126,7 +131,7 @@ struct RedBlackTree {
         if(key < parent->key) setLeft(parent, node);
         else setRight(parent, node);
 
-        fixInsert(node);
+        // fixInsert(node);
     }
 
     bool count(int key, int version) {
@@ -287,51 +292,27 @@ void testInsert() {
 
     RedBlackTree tree;
 
-    tree.insert(1);
-    tree.insert(2);
-    tree.insert(3);
-    tree.insert(4);
-    tree.insert(5);
+    vector<int> keys(10);
+    iota(keys.begin(), keys.end(), 1);
 
-    cout << tree.count(1, 1) << endl;
-    cout << tree.count(2, 1) << endl;
-    cout << tree.count(3, 1) << endl;
-    cout << tree.count(4, 1) << endl;
-    cout << tree.count(5, 1) << endl;
+    mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
 
-    cout << endl;
+    shuffle(keys.begin(), keys.end(), rng);
 
-    cout << tree.count(1, 2) << endl;
-    cout << tree.count(2, 2) << endl;
-    cout << tree.count(3, 2) << endl;
-    cout << tree.count(4, 2) << endl;
-    cout << tree.count(5, 2) << endl;
+    for(auto key : keys) {
+        cout << "Inserting key: " << key << endl;
+        tree.insert(key);
+    }
 
     cout << endl;
 
-    cout << tree.count(1, 3) << endl;
-    cout << tree.count(2, 3) << endl;
-    cout << tree.count(3, 3) << endl;
-    cout << tree.count(4, 3) << endl;
-    cout << tree.count(5, 3) << endl;
-
-    cout << endl;
-
-    cout << tree.count(1, 4) << endl;
-    cout << tree.count(2, 4) << endl;
-    cout << tree.count(3, 4) << endl;
-    cout << tree.count(4, 4) << endl;
-    cout << tree.count(5, 4) << endl;
-
-    cout << endl;
-
-    cout << tree.count(1, 5) << endl;
-    cout << tree.count(2, 5) << endl;
-    cout << tree.count(3, 5) << endl;
-    cout << tree.count(4, 5) << endl;
-    cout << tree.count(5, 5) << endl;
-
-    cout << endl;
+    for(int i = 1; i <= 10; i++) {
+        cout << "Version " << i << ": ";
+        for(int j = 1; j <= 10; j++) {
+            cout << tree.count(j, i) << " ";
+        }
+        cout << endl;
+    }
 }
 
 int main() {
