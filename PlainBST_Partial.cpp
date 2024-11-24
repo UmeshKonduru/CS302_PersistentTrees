@@ -1,17 +1,18 @@
 #include <memory>
 #include <map>
 #include <vector>
-#include <iostream>
-#include <algorithm>
-#include <chrono>
+#include <numeric>
 #include <random>
+#include <chrono>
+#include <algorithm>
+#include <iostream>
 
 using namespace std;
 
 mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
 
 enum Mod {
-    EMPTY, LEFT, RIGHT
+    LEFT, RIGHT, EMPTY
 };
 
 struct Modification;
@@ -24,36 +25,35 @@ struct Modification {
     Mod type;
     shared_ptr<Node> node;
 
-    Modification() : version(-1), type(EMPTY), node(nullptr) {}
+    Modification() : version(0), type(EMPTY), node(nullptr) {} 
 };
 
 struct Node {
 
     int key;
     shared_ptr<Node> left, right;
-    shared_ptr<Node> parent;
     shared_ptr<Modification> mod;
 
-    Node(int key) : key(key), left(nullptr), right(nullptr), parent(nullptr), mod(make_shared<Modification>()) {}
+    Node(int key) : key(key), left(nullptr), right(nullptr), mod(make_shared<Modification>()) {}
 };
 
 struct Tree {
-
-    int latestVersion;
+    
+    int currentVersion;
     map<int, shared_ptr<Node>> root;
 
-    Tree() : latestVersion(0) {
-        root[0] = nullptr;
-    }
+    Tree() : currentVersion(0) { root[0] = nullptr; }
 
     shared_ptr<Node> clone(const shared_ptr<Node>& node) {
         auto newNode = make_shared<Node>(node->key);
         newNode->left = node->mod->type == LEFT ? node->mod->node : node->left;
         newNode->right = node->mod->type == RIGHT ? node->mod->node : node->right;
-        newNode->parent = node->parent;
-        if(newNode->left != nullptr) newNode->left->parent = newNode;
-        if(newNode->right != nullptr) newNode->right->parent = newNode;
         return newNode;
+    }
+
+    shared_ptr<Node> getRoot() {
+        auto it = root.rbegin();
+        return it->second;
     }
 
     shared_ptr<Node> getLeft(const shared_ptr<Node>& node, int version) {
@@ -67,140 +67,146 @@ struct Tree {
     }
 
     shared_ptr<Node> getLeft(const shared_ptr<Node>& node) {
-        return getLeft(node, latestVersion);
+        if(node->mod->type == LEFT) return node->mod->node;
+        return node->left;
     }
 
     shared_ptr<Node> getRight(const shared_ptr<Node>& node) {
-        return getRight(node, latestVersion);
+        if(node->mod->type == RIGHT) return node->mod->node;
+        return node->right;
     }
 
-    shared_ptr<Node> getRoot(int version) {
-        auto it = --(root.upper_bound(version));
-        return it->second;
-    }
+    shared_ptr<Node> setLeft(const shared_ptr<Node>& node, const shared_ptr<Node>& left) {
+        
+        if(getLeft(node) == left) return node;
 
-    shared_ptr<Node> getRoot() {
-        auto it = root.rbegin();
-        return it->second;
-    }
-
-    shared_ptr<Node> setLeft(const shared_ptr<Node>&, const shared_ptr<Node>&);
-    shared_ptr<Node> setRight(const shared_ptr<Node>&, const shared_ptr<Node>&);
-
-    void insert(int key) {
-
-        ++latestVersion;
-
-        auto node = getRoot();
-        shared_ptr<Node> par = nullptr;
-
-        while(node != nullptr) {
-            par = node;
-            if(key < node->key) node = getLeft(node);
-            else node = getRight(node);
+        if(node->mod->type == EMPTY) {
+            node->mod->type = LEFT;
+            node->mod->node = left;
+            node->mod->version = currentVersion;
+            return node;
         }
 
-        auto newNode = make_shared<Node>(key);
-
-        if(par == nullptr) {
-            root[latestVersion] = newNode;
-            return;
-        }
-
-        if(key < par->key) par = setLeft(par, newNode);
-        else par = setRight(par, newNode);
-
-        newNode->parent = par;
+        auto newNode = clone(node);
+        newNode->left = left;
+        return newNode;
     }
 
-    bool count(int key, int version) {
+    shared_ptr<Node> setRight(const shared_ptr<Node>& node, const shared_ptr<Node>& right) {
+        
+        if(getRight(node) == right) return node;
 
-        auto node = getRoot(version);
+        if(node->mod->type == EMPTY) {
+            node->mod->type = RIGHT;
+            node->mod->node = right;
+            node->mod->version = currentVersion;
+            return node;
+        }
 
-        while(node != nullptr) {
+        auto newNode = clone(node);
+        newNode->right = right;
+        return newNode;
+    }
+
+    shared_ptr<Node> insertKey(const shared_ptr<Node>& node, int key) {
+
+        if(!node) return make_shared<Node>(key);
+
+        if(key < node->key) {
+            auto left = insertKey(getLeft(node), key);
+            return setLeft(node, left);
+        }
+
+        if(key > node->key) {
+            auto right = insertKey(getRight(node), key);
+            return setRight(node, right);
+        }
+
+        return node;
+    }
+
+    shared_ptr<Node> deleteKey(const shared_ptr<Node>& node, int key) {
+
+        if(!node) return nullptr;
+
+        if(key < node->key) {
+            auto left = deleteKey(getLeft(node), key);
+            return setLeft(node, left);
+        }
+
+        if(key > node->key) {
+            auto right = deleteKey(getRight(node), key);
+            return setRight(node, right);
+        }
+
+        if(!getLeft(node)) return getRight(node);
+        if(!getRight(node)) return getLeft(node);
+
+        auto succ = getRight(node);
+        while(getLeft(succ)) succ = getLeft(succ);
+
+        auto newNode = make_shared<Node>(succ->key);
+        newNode->left = getLeft(node);
+
+        auto right = deleteKey(getRight(node), succ->key);
+        newNode->right = right;
+
+        return newNode;
+    }
+
+    bool find(int key, int version) {
+        auto node = root[version];
+        while(node) {
             if(node->key == key) return true;
             if(key < node->key) node = getLeft(node, version);
             else node = getRight(node, version);
         }
-
         return false;
     }
+
+    bool find(int key) {
+        auto node = getRoot();
+        while(node) {
+            if(node->key == key) return true;
+            if(key < node->key) node = getLeft(node);
+            else node = getRight(node);
+        }
+        return false;
+    }
+
+    void insert(int key) {
+        currentVersion++;
+        root[currentVersion] = insertKey(getRoot(), key);
+    }
+
+    void erase(int key) {
+        currentVersion++;
+        root[currentVersion] = deleteKey(getRoot(), key);
+    }
 };
-
-shared_ptr<Node> Tree::setLeft(const shared_ptr<Node>& node, const shared_ptr<Node>& left) {
-    
-    if(node->mod->type == EMPTY) {
-        node->mod->version = latestVersion;
-        node->mod->type = LEFT;
-        node->mod->node = left;
-        if(left != nullptr) left->parent = node;
-        return node;
-    }
-
-    auto newNode = clone(node);
-    newNode->left = left;
-    if(left != nullptr) left->parent = newNode;
-    
-    auto parent = node->parent;
-
-    if(parent == nullptr) {
-        root[latestVersion] = newNode;
-        return newNode;
-    }
-
-    if(getLeft(parent) == node) parent = setLeft(parent, newNode);
-    else parent = setRight(parent, newNode);
-    newNode->parent = parent;
-
-    return newNode;
-}
-
-shared_ptr<Node> Tree::setRight(const shared_ptr<Node>& node, const shared_ptr<Node>& right) {
-    
-    if(node->mod->type == EMPTY) {
-        node->mod->version = latestVersion;
-        node->mod->type = RIGHT;
-        node->mod->node = right;
-        if(right != nullptr) right->parent = node;
-        return node;
-    }
-
-    auto newNode = clone(node);
-    newNode->right = right;
-    if(right != nullptr) right->parent = newNode;
-    
-    auto parent = node->parent;
-
-    if(parent == nullptr) {
-        root[latestVersion] = newNode;
-        return newNode;
-    }
-
-    if(getLeft(parent) == node) parent = setLeft(parent, newNode);
-    else parent = setRight(parent, newNode);
-    newNode->parent = parent;
-
-    return newNode;
-}
 
 void test() {
 
     Tree tree;
 
-    vector<int> keys(10);
-    iota(keys.begin(), keys.end(), 1);
+    vector<int> keys(20);
+    iota(keys.begin(), keys.begin() + 10, 1);
+    iota(keys.begin() + 10, keys.end(), 1);
     shuffle(keys.begin(), keys.end(), rng);
 
-    for(auto key : keys) {
-        cout << "Inserting " << key << endl;
-        tree.insert(key);
+    for(int key : keys) {
+        if(tree.find(key)) {
+            cout << "Erasing key " << key << endl;
+            tree.erase(key);
+        } else {
+            cout << "Inserting key " << key << endl;
+            tree.insert(key);
+        }
     }
 
-    for(int i = 0; i <= 10; i++) {
+    for(int i = 0; i <= 20; i++) {
         cout << "Version " << i << endl;
-        for(int j = 1; j <= 10; j++) {
-            cout << tree.count(j, i) << " ";
-        }
+        for(int j = 1; j <= 10; j++) cout << tree.find(j, i) << " ";
         cout << endl;
     }
 }
