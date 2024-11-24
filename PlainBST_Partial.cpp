@@ -183,6 +183,18 @@ struct Tree {
         currentVersion++;
         root[currentVersion] = deleteKey(getRoot(), key);
     }
+
+    void inorder(const shared_ptr<Node>& node, int version) {
+        if(!node) return;
+        inorder(getLeft(node, version), version);
+        cout << node->key << " ";
+        inorder(getRight(node, version), version);
+    }
+
+    void inorder(int version) {
+        inorder(root[version], version);
+        cout << endl;
+    }
 };
 
 void test() {
@@ -206,8 +218,7 @@ void test() {
 
     for(int i = 0; i <= 20; i++) {
         cout << "Version " << i << endl;
-        for(int j = 1; j <= 10; j++) cout << tree.find(j, i) << " ";
-        cout << endl;
+        tree.inorder(i);
     }
 }
 
