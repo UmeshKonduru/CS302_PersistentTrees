@@ -11,6 +11,8 @@
 
 using namespace std;
 
+mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
+
 enum Color {
     RED, BLACK
 };
@@ -55,20 +57,8 @@ struct Node {
 
         auto node = make_shared<Node>(key, parent);
         node->color = color;
-        node->left = left;
-        node->right = right;
-
-        switch(mod->type) {
-            case LEFT:
-            node->left = mod->node;
-            break;
-            case RIGHT:
-            node->right = mod->node;
-        }
-
-        if(left != nullptr) left->parent = node;
-        if(right != nullptr) right->parent = node;
-        if(mod->type != EMPTY && mod->node != nullptr) mod->node->parent = node;
+        node->left = (mod->type == LEFT) ? mod->node : left;
+        node->right = (mod->type == RIGHT) ? mod->node : right;
 
         return node;
     }
@@ -103,6 +93,22 @@ struct RedBlackTree {
         return it->second;
     }
 
+    shared_ptr<Node> getLeft(const shared_ptr<Node>& node, int version) {
+        return node == nullptr ? nullptr : node->getLeft(version);
+    }
+
+    shared_ptr<Node> getRight(const shared_ptr<Node>& node, int version) {
+        return node == nullptr ? nullptr : node->getRight(version);
+    }
+
+    shared_ptr<Node> getLeft(const shared_ptr<Node>& node) {
+        return getLeft(node, latestVersion);
+    }
+
+    shared_ptr<Node> getRight(const shared_ptr<Node>& node) {
+        return getRight(node, latestVersion);
+    }
+
     void setLeft(shared_ptr<Node>&, shared_ptr<Node>);
     void setRight(shared_ptr<Node>&, shared_ptr<Node>);
     void leftRotate(shared_ptr<Node>&);
@@ -123,8 +129,8 @@ struct RedBlackTree {
 
         while(node != nullptr) {
             parent = node;
-            if(key < node->key) node = node->getLeft(latestVersion);
-            else node = node->getRight(latestVersion);
+            if(key < node->key) node = getLeft(node);
+            else node = getRight(node);
         }
 
         node = make_shared<Node>(key, parent);
@@ -140,8 +146,8 @@ struct RedBlackTree {
 
         while(node != nullptr) {
             if(node->key == key) return true;
-            if(key < node->key) node = node->getLeft(version);
-            else node = node->getRight(version);
+            if(key < node->key) node = getLeft(node, version);
+            else node = getRight(node, version);
         }
 
         return false;
@@ -161,6 +167,7 @@ void RedBlackTree::setLeft(shared_ptr<Node> &node, shared_ptr<Node> left) {
     auto newNode = node->copy();
     newNode->left = left;
     if(left != nullptr) left->parent = newNode;
+    if(newNode->right != nullptr) newNode->right->parent = newNode;
 
     if(node->parent == nullptr) {
         root[latestVersion] = newNode;
@@ -168,9 +175,10 @@ void RedBlackTree::setLeft(shared_ptr<Node> &node, shared_ptr<Node> left) {
         return;
     }
 
-    if(node->parent->left == node) setLeft(node->parent, newNode);
+    if(getLeft(node->parent) == node) setLeft(node->parent, newNode);
     else setRight(node->parent, newNode);
 
+    newNode->parent = node->parent;
     node = newNode;
 }
 
@@ -187,6 +195,7 @@ void RedBlackTree::setRight(shared_ptr<Node> &node, shared_ptr<Node> right) {
     auto newNode = node->copy();
     newNode->right = right;
     if(right != nullptr) right->parent = newNode;
+    if(newNode->left != nullptr) newNode->left->parent = newNode;
 
     if(node->parent == nullptr) {
         root[latestVersion] = newNode;
@@ -194,24 +203,25 @@ void RedBlackTree::setRight(shared_ptr<Node> &node, shared_ptr<Node> right) {
         return;
     }
 
-    if(node->parent->left == node) setLeft(node->parent, newNode);
-    else setRight(node->parent, newNode);
+    if(getLeft(node->parent) == node) setLeft(newNode->parent, newNode);
+    else setRight(newNode->parent, newNode);
 
+    newNode->parent = node->parent;
     node = newNode;
 }
 
 void RedBlackTree::leftRotate(shared_ptr<Node> &node) {
 
-    if(node == nullptr || node->getRight(latestVersion) == nullptr) return;
+    if(node == nullptr || getRight(node) == nullptr) return;
 
-    auto right = node->getRight(latestVersion);
+    auto right = getRight(node);
     
-    setRight(node, right->getLeft(latestVersion));
+    setRight(node, getLeft(right));
 
     if(node->parent == nullptr) {
         root[latestVersion] = right;
         right->parent = nullptr;
-    } else if(node->parent->left == node) {
+    } else if(getLeft(node->parent) == node) {
         setLeft(node->parent, right);
     } else {
         setRight(node->parent, right);
@@ -222,16 +232,16 @@ void RedBlackTree::leftRotate(shared_ptr<Node> &node) {
 
 void RedBlackTree::rightRotate(shared_ptr<Node> &node) {
 
-    if(node == nullptr || node->getLeft(latestVersion) == nullptr) return;
+    if(node == nullptr || getLeft(node) == nullptr) return;
 
     auto left = node->getLeft(latestVersion);
 
-    setLeft(node, left->getRight(latestVersion));
+    setLeft(node, getRight(left));
 
     if(node->parent == nullptr) {
         root[latestVersion] = left;
         left->parent = nullptr;
-    } else if(node->parent->left == node) {
+    } else if(getLeft(node->parent) == node) {
         setLeft(node->parent, left);
     } else {
         setRight(node->parent, left);
@@ -242,45 +252,39 @@ void RedBlackTree::rightRotate(shared_ptr<Node> &node) {
 
 void RedBlackTree::fixInsert(shared_ptr<Node> node) {
 
-    shared_ptr<Node> parent, grandParent, uncle;
-
     while(node->parent != nullptr && node->parent->color == RED) {
 
-        parent = node->parent, grandParent = parent->parent;
-        
-        if(parent == grandParent->getLeft(latestVersion)) {
-            uncle = grandParent->getRight(latestVersion);
+        if(node->parent == getLeft(node->parent->parent)) {
+            auto uncle = getRight(node->parent->parent);
             if(uncle != nullptr && uncle->color == RED) {
-                grandParent->color = RED;
-                parent->color = BLACK;
+                node->parent->color = BLACK;
                 uncle->color = BLACK;
-                node = grandParent;
+                node->parent->parent->color = RED;
+                node = node->parent->parent;
             } else {
-                if(node == parent->getRight(latestVersion)) {
-                    leftRotate(parent);
-                    node = parent;
-                    parent = node->parent;
+                if(node == getRight(node->parent)) {
+                    node = node->parent;
+                    leftRotate(node);
                 }
-                rightRotate(grandParent);
-                swap(parent->color, grandParent->color);
-                node = parent;
+                node->parent->color = BLACK;
+                node->parent->parent->color = RED;
+                rightRotate(node->parent->parent);
             }
         } else {
-            uncle = grandParent->getLeft(latestVersion);
+            auto uncle = getLeft(node->parent->parent);
             if(uncle != nullptr && uncle->color == RED) {
-                grandParent->color = RED;
-                parent->color = BLACK;
+                node->parent->color = BLACK;
                 uncle->color = BLACK;
-                node = grandParent;
+                node->parent->parent->color = RED;
+                node = node->parent->parent;
             } else {
-                if(node == parent->getLeft(latestVersion)) {
-                    rightRotate(parent);
-                    node = parent;
-                    parent = node->parent;
+                if(node == getLeft(node->parent)) {
+                    node = node->parent;
+                    rightRotate(node);
                 }
-                leftRotate(grandParent);
-                swap(parent->color, grandParent->color);
-                node = parent;
+                node->parent->color = BLACK;
+                node->parent->parent->color = RED;
+                leftRotate(node->parent->parent);
             }
         }
     }
@@ -294,17 +298,12 @@ void testInsert() {
 
     vector<int> keys(10);
     iota(keys.begin(), keys.end(), 1);
-
-    mt19937 rng(chrono::steady_clock::now().time_since_epoch().count());
-
     shuffle(keys.begin(), keys.end(), rng);
 
     for(auto key : keys) {
-        cout << "Inserting key: " << key << endl;
+        cout << "Inserting " << key << endl;
         tree.insert(key);
     }
-
-    cout << endl;
 
     for(int i = 1; i <= 10; i++) {
         cout << "Version " << i << ": ";
